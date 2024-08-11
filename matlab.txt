@@ -1,0 +1,19 @@
+asset = input('Step Up To Analyze: ', 's');  % 's' indicates string input
+url = 'http://192.168.1.229:5000/analyze';
+options = weboptions('Timeout', 120, 'MediaType', 'application/json');  % Set timeout to 120 seconds
+data = struct('asset', asset);
+response = webwrite(url, data, options);
+responseJson = jsonencode(response);
+pdfFileName = 'analysis_output.pdf';
+import mlreportgen.dom.*;
+doc = Document(pdfFileName, 'pdf');
+titlePara = Paragraph('Sentiment Analysis Result');
+titlePara.Bold = true;
+titlePara.FontSize = '14pt';
+append(doc, titlePara);
+append(doc, Paragraph(' '));
+responsePara = Paragraph(responseJson);
+responsePara.FontSize = '10pt';
+append(doc, responsePara);
+close(doc);
+fprintf('PDF saved as %s\n', pdfFileName);
