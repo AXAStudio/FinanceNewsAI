@@ -6,8 +6,6 @@ from .sentiment import SentimentAnalysis
 from .api_models import analyze_model, bias_model
 from .bias import get_bias
 
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import tensorflow as tf
 
 

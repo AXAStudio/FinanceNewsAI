@@ -6,9 +6,19 @@ import matplotlib.pyplot as plt
 
 class SentimentModel: 
     def __init__(self):
-        self.df = pd.read_csv('shuffled_main.csv').dropna()
+        self.df = pd.read_csv('shuffled_main.csv', encoding='utf-8').dropna().sample(frac=1)
+
+        original_row_count = len(self.df)
+
+        self.df = self.df[self.df['message'].apply(lambda x: all(ord(char) < 128 for char in x))]
+
+        removed_row_count = original_row_count - len(self.df)
+        print(f"Number of rows removed due to non-ASCII characters: {removed_row_count}")
+
+
         self.df = self.df[self.df['sentiment'].isin([-1, 1])]  # Keep only -1 and 1
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.df['message'], self.df['sentiment'], test_size=0.1, random_state=42)
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.df['message'], self.df['sentiment'], test_size=0.2, random_state=42)
+        
 
         # Convert labels to binary (0 for -1 and 1 for 1)
         self.y_train = (self.y_train == 1).astype(int)
@@ -25,10 +35,10 @@ class SentimentModel:
     def build(self):
         self._model.add(self.text_vectorizer)
         self._model.add(tf.keras.layers.Embedding(len(self.text_vectorizer.get_vocabulary()), 128, mask_zero=True))
-        self._model.add(tf.keras.layers.SpatialDropout1D(0.2))
-        self._model.add(tf.keras.layers.GRU(256, return_sequences=True))
-        self._model.add(tf.keras.layers.GRU(128))
-        self._model.add(tf.keras.layers.Dense(64, activation='relu'))
+        self._model.add(tf.keras.layers.SpatialDropout1D(0.3))
+        self._model.add(tf.keras.layers.GRU(512, return_sequences=True))
+        self._model.add(tf.keras.layers.GRU(256))
+        self._model.add(tf.keras.layers.Dense(128, activation='relu'))
         self._model.add(tf.keras.layers.Dropout(0.5))
         self._model.add(tf.keras.layers.Dense(1, activation='sigmoid'))  # Single output neuron for binary classification
         
@@ -66,10 +76,10 @@ class SentimentModel:
         print('Test Recall:', results[3])
 
     def save(self):
-        self._model.save('sentiment_model')  # Save the model
+        self._model.save('sentiment_model.keras')
 
     def load(self):
-        self._model = tf.keras.models.load_model('sentiment_model', custom_objects={'TextVectorization': self.text_vectorizer})
+        self._model = tf.keras.models.load_model('sentiment_model.keras')
 
     def print_label_percentages(self):
         test_dataset = tf.data.Dataset.from_tensor_slices(self.X_test).batch(32)
@@ -95,3 +105,10 @@ class SentimentModel:
         # Convert the prediction to sentiment (-1 to 1)
         sentiment = prediction[0] if prediction[0] > 0.5 else -1 * (1 - prediction[0])
         return sentiment
+
+c = SentimentModel()
+c.build()
+c.train()
+c.evaluate()
+if input("Save This Model? (y/n): ").lower() == "y":
+    c.save()
