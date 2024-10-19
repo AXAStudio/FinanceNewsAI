@@ -4,22 +4,34 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import re
+
+
 class SentimentModel: 
     def __init__(self):
         self.df = pd.read_csv('shuffled_main.csv', encoding='utf-8').dropna().sample(frac=1)
 
         original_row_count = len(self.df)
-
         self.df = self.df[self.df['message'].apply(lambda x: all(ord(char) < 128 for char in x))]
-
         removed_row_count = original_row_count - len(self.df)
         print(f"Number of rows removed due to non-ASCII characters: {removed_row_count}")
 
-
-        self.df = self.df[self.df['sentiment'].isin([-1, 1])]  # Keep only -1 and 1
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.df['message'], self.df['sentiment'], test_size=0.2, random_state=42)
+        self.df = self.df[self.df['sentiment'].isin([-1, 1])]
         
 
+        # Text preprocessing
+        self.df['message'] = self.df['message'].str.lower()  # Lowercase
+        self.df['message'] = self.df['message'].str.replace(r'[^\w\s]', '', regex=True)  # Remove punctuation
+        stop_words = set(stopwords.words('english'))
+        self.df['message'] = self.df['message'].apply(lambda x: ' '.join([word for word in x.split() if word not in stop_words]))  # Remove stopwords
+        lemmatizer = WordNetLemmatizer()
+        self.df['message'] = self.df['message'].apply(lambda x: ' '.join([lemmatizer.lemmatize(word) for word in x.split()]))  # Lemmatization
+
+
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.df['message'], self.df['sentiment'], test_size=0.2, random_state=42)
+        
         # Convert labels to binary (0 for -1 and 1 for 1)
         self.y_train = (self.y_train == 1).astype(int)
         self.y_test = (self.y_test == 1).astype(int)
@@ -105,12 +117,26 @@ class SentimentModel:
         prediction = self._model.predict(model_input)
 
         # Convert the prediction to sentiment (-1 to 1)
-        sentiment = prediction[0] if prediction[0] > 0.5 else -1 * (1 - prediction[0])
+        sentiment = 1 if prediction[0] > 0.5 else -1
         return sentiment
+    def plot_history(self):
+        if self._hist_obj is not None:
+            plt.plot(self._hist_obj.history['accuracy'], label='Train Accuracy')
+            plt.plot(self._hist_obj.history['val_accuracy'], label='Validation Accuracy')
+            plt.plot(self._hist_obj.history['loss'], label='Train Loss')
+            plt.plot(self._hist_obj.history['val_loss'], label='Validation Loss')
+            plt.title('Model Accuracy and Loss')
+            plt.xlabel('Epoch')
+            plt.ylabel('Score')
+            plt.legend()
+            plt.show()
+
+
 
 c = SentimentModel()
 c.build()
 c.train()
 c.evaluate()
+c.plot_history()
 if input("Save This Model? (y/n): ").lower() == "y":
     c.save()
