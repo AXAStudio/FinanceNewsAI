@@ -5,6 +5,7 @@ from typing import Union, Any
 from yahooquery import search
 from bs4 import BeautifulSoup
 import math
+from datetime import datetime
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' 
@@ -147,6 +148,25 @@ class SentimentAnalysis:
         def pred_convert_binary(pred: int) -> int:
             """Convert 0 - 1 to -1 to 1"""
             return pred if pred > 0.5 else -1 * (1 - pred)
+        
+        def find_oldest_article(data: dict) -> dict:
+            oldest_date = None
+
+            for article in data.values():
+                # Extract the date and convert it to a datetime object
+                article_date_str = article.get("date")
+                article_date = datetime.strptime(article_date_str, "%a, %d %b %Y %H:%M:%S %Z")
+
+                # Update oldest_date if it's None or if the current article date is older
+                if oldest_date is None or article_date < oldest_date:
+                    oldest_date = article_date
+
+            # Calculate the number of days from today
+            if oldest_date is not None:
+                today = datetime.now()
+                days_oldest = (today - oldest_date).days
+                return str(days_oldest) + " Days Ago"
+            return None
 
         avg = sum(
             pred_convert_binary(prediction[0])
@@ -179,6 +199,8 @@ class SentimentAnalysis:
             list(listandheaders.values())
         )
 
+        days_oldest = find_oldest_article(data)
+
         asset_details = {
             'asset_name': asset_name,
             'asset_ticker': ticker
@@ -188,6 +210,7 @@ class SentimentAnalysis:
             'asset_details': asset_details,
             'n_articles_found': len(all_news),
             'avg_score': float('%.3f' % avg),
+            'oldest_article_read': days_oldest,
             'data': data
         }
 

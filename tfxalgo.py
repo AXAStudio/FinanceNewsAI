@@ -34,13 +34,15 @@ class SentimentModel:
 
     def build(self):
         self._model.add(self.text_vectorizer)
-        self._model.add(tf.keras.layers.Embedding(len(self.text_vectorizer.get_vocabulary()), 128, mask_zero=True))
-        self._model.add(tf.keras.layers.SpatialDropout1D(0.3))
-        self._model.add(tf.keras.layers.GRU(512, return_sequences=True))
-        self._model.add(tf.keras.layers.GRU(256))
-        self._model.add(tf.keras.layers.Dense(128, activation='relu'))
-        self._model.add(tf.keras.layers.Dropout(0.5))
-        self._model.add(tf.keras.layers.Dense(1, activation='sigmoid'))  # Single output neuron for binary classification
+        self._model.add(tf.keras.layers.Embedding(input_dim=len(self.text_vectorizer.get_vocabulary()), output_dim=128, mask_zero=True))
+        self._model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=True, kernel_regularizer=tf.keras.regularizers.L2(0.01), recurrent_dropout=0.4)))
+        self._model.add(tf.keras.layers.BatchNormalization())
+        self._model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, recurrent_dropout=0.4)))
+        self._model.add(tf.keras.layers.BatchNormalization())
+        self._model.add(tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=tf.keras.regularizers.L2(0.02)))
+        self._model.add(tf.keras.layers.Dropout(0.4))
+        self._model.add(tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=tf.keras.regularizers.L2(0.01)))
+        self._model.add(tf.keras.layers.Dense(1, activation='sigmoid'))
         
         opt = tf.keras.optimizers.Adam(learning_rate=1e-4)
         self._model.compile(loss=tf.keras.losses.BinaryCrossentropy(from_logits=False),
@@ -64,7 +66,7 @@ class SentimentModel:
             validation_data=val_dataset,
             verbose=1,
             shuffle=True,
-            callbacks=[early_stopping, reduce_lr]
+            callbacks=[early_stopping, reduce_lr]  # Add your scheduler here if using LearningRateScheduler
         )
 
     def evaluate(self):

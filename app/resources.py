@@ -12,7 +12,7 @@ import tensorflow as tf
 DEFAULT_ARTICLE_COUNT = 10
 
 
-model = tf.saved_model.load('app/models/sentiment_model')
+model = tf.keras.models.load_model('app/models/sentiment_model.keras')
 api = Namespace("Sentiment Analysis")
 apib = Namespace("Bias Analysis")
 
