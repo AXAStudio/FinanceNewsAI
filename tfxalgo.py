@@ -8,7 +8,7 @@ from tensorflow.keras import Sequential
 from tensorflow.keras.layers import TextVectorization, Embedding, Bidirectional, LSTM, Dense, Dropout
 
 # === 1. Load and Prepare Data ===
-df = pd.read_csv("augmented_data.csv", encoding='latin-1')
+df = pd.read_csv("augmented_data.csv", encoding="utf-8")
 texts = df['text'].astype(str).tolist()
 labels = df['label'].replace({-1: 0, 1: 1}).tolist()
 labels = np.array(labels)
@@ -79,7 +79,8 @@ print("\n📊 Average Metrics Across Folds:")
 print(results_df.mean(numeric_only=True).round(4))
 
 # === 8. Save Full Model as .keras ===
-model.save("model.keras")  # Just filename with .keras extension
+model.save("model.keras", save_format="keras")
+
 
 
 # === 9. Inference Loop ===
