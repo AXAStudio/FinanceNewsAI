@@ -4,214 +4,119 @@ import asyncio
 from typing import Union, Any
 from yahooquery import search
 from bs4 import BeautifulSoup
-import math
 from datetime import datetime
-
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+import pickle
+import numpy as np
 import tensorflow as tf
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import load_model
 
 
-ARTICLES_PER_PAGE = 7
+# Suppress TensorFlow logs
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
+maxlen = 100  # consistent with training
+
+def preprocess_text_list(texts: list[str], tokenizer, maxlen: int = 100):
+    sequences = tokenizer.texts_to_sequences(texts)
+    return pad_sequences(sequences, maxlen=maxlen, padding='post', truncating='post')
 
 class TFModel:
-    """Saved tensorflow model"""
     def __init__(self, model: Any):
-        """Constructor"""
         self._model = model
 
-    def predict(self, model_input: list) -> list:
-        """Get predictions from model"""
-        return self._model(tf.constant(model_input)).numpy().tolist()
-
+    def predict(self, model_input: np.ndarray) -> np.ndarray:
+        return self._model.predict(model_input)
 
 class SentimentAnalysis:
-    """Gets sentiment analysis for an asset using a saved model"""
     def __init__(
         self,
-        asset: str, 
+        asset: str,
         model: Any,
         max_articles: int = 10,
-        default_image_url: str = "https://www.projectactionstar.com/uploads\
-/videos/no_image.gif",
+        default_image_url: str = "https://www.projectactionstar.com/uploads/videos/no_image.gif",
         requires_ticker: bool = False
-    ) -> "SentimentAnalysis":
-        """Constructor"""
+    ):
         self.asset = asset
         self.model = TFModel(model)
         self.max_articles = max_articles
         self.placeholder_url = default_image_url
         self._requiresTicker = requires_ticker
-    
-    async def fetch_company_info(
-        self
-    ) -> tuple[Union[None, str], Union[None, str]]:
-        """
-        If company_name is a ticker, converts to asset_name otherwise, leaves 
-        blank
-        """
-        company_name = self.asset.upper()
+
+    async def fetch_company_info(self) -> tuple[Union[None, str], Union[None, str]]:
         try:
-            results = search(company_name)
+            results = search(self.asset.upper())
             quotes = results['quotes'][0]
             return quotes['longname'], quotes['symbol']
         except Exception:
-            if (self._requiresTicker):
-                return None, None
-            else:
-                return self.asset, None
+            return (None, None) if self._requiresTicker else (self.asset, None)
 
-    def fetch_image_links(self, images: str) -> list[str]:
-        """
-        Gets the cover page of a specific article and replaces none with 
-        placeholder
-        """
-        return [
-            image.get(attr) if "logo" not in (image.get(attr) or "").lower() 
-            and "data:image" not in (image.get(attr) or "")
-            else self.placeholder_url
-            for image in images
-            for attr in ["dimg_2", "data-src", "data-fallback-src", "src"]
-            if image.get(attr)
-        ]
+    async def fetch_news_page(self, session: aiohttp.ClientSession, url: str) -> str:
+        async with session.get(url) as response:
+            return await response.text() if response.status == 200 else None
 
-    def listdict(
-        self,
-        keys: list,
-        keyval: list, 
-        values: list  
-    ) -> dict[str, dict[str, Union[str, int]]]:
-        """
-        Takes three lists and outputs format {listone:{listtwo: listthree}}
-        """    
+    def listdict(self, keys, keyval, values):
         return {
             str(i): {keyval[j]: values[j][i] for j in range(len(keyval))}
             for i in range(len(keys))
         }
 
-    async def fetch_news_page(
-        self, 
-        session: aiohttp.ClientSession, 
-        url: str
-    ) -> str:
+    def find_oldest_article(self, data: dict) -> str:
+        dates = [datetime.strptime(article["date"], "%a, %d %b %Y %H:%M:%S %Z") for article in data.values()]
+        if not dates:
+            return None
+        days = (datetime.now() - min(dates)).days
+        return f"{days} Days Ago"
 
-        """Fetches html on web page"""
-        async with session.get(url) as response:
-            if response.status != 200:
-                return None
-            return await response.text()
-    
-    async def analyze_sentiment(self) -> dict[str]:
-        """
-        Gets news headlines and feeds them into the Sentiment AI which outputs a
-        score from -1 to 1
-        """
-
+    async def analyze_sentiment(self) -> dict[str, Any]:
         asset_name, ticker = await self.fetch_company_info()
-
         if not asset_name:
             return {"error": f"Could not find asset: {self.asset}"}
         
-        asset_name = asset_name.replace(" ", "+")
-        asset_name = asset_name.title()
-
-        url = f"https://news.google.com/rss/search?q={asset_name}"
+        asset_query = asset_name.replace(" ", "+")
+        url = f"https://news.google.com/rss/search?q={asset_query}"
 
         async with aiohttp.ClientSession() as session:
             rss_feed = await self.fetch_news_page(session, url)
-
         if not rss_feed:
             return {"error": "Failed to retrieve the news feed."}
 
         soup = BeautifulSoup(rss_feed, "xml")
-
         items = soup.find_all("item")[:self.max_articles]
         all_news = [item.title.text for item in items]
-
-        all_outlets = [
-            item.source.text 
-            if item.source else "Unknown Outlet" 
-            for item in items
-        ]
-        
+        all_outlets = [item.source.text if item.source else "Unknown Outlet" for item in items]
         all_time = [item.pubDate.text for item in items]
         articlelinks = [item.link.text for item in items]
         all_images = [self.placeholder_url] * len(all_news)
-        
+
         if not all_news:
             return {"error": "No news articles found"}
 
-        predictions = self.model.predict(all_news)
+        preprocessed = preprocess_text_list(all_news, tokenizer, maxlen)
+        predictions = self.model.predict(preprocessed)
 
-        def pred_convert_binary(pred: int) -> int:
-            """Convert 0 - 1 to -1 to 1"""
-            return pred if pred > 0.5 else -1 * (1 - pred)
-        
-        def find_oldest_article(data: dict) -> dict:
-            oldest_date = None
+        scores = [(pred[0] - 0.5) * 2 for pred in predictions]  # Normalize to -1 to 1
+        scores = [round(score, 3) for score in scores]
+        avg_score = round(sum(scores) / len(scores), 3)
 
-            for article in data.values():
-                # Extract the date and convert it to a datetime object
-                article_date_str = article.get("date")
-                article_date = datetime.strptime(article_date_str, "%a, %d %b %Y %H:%M:%S %Z")
-
-                # Update oldest_date if it's None or if the current article date is older
-                if oldest_date is None or article_date < oldest_date:
-                    oldest_date = article_date
-
-            # Calculate the number of days from today
-            if oldest_date is not None:
-                today = datetime.now()
-                days_oldest = (today - oldest_date).days
-                return str(days_oldest) + " Days Ago"
-            return None
-
-        avg = sum(
-            pred_convert_binary(prediction[0])
-            for prediction in predictions
-        ) / len(predictions)
-
-        scores = [
-            float('%.3f' % pred_convert_binary(prediction[0]))
-            for prediction in predictions
-        ]
-
-        scores += [0.0] * (len(all_news) - len(scores))
-
-        asset_name = asset_name.replace("+"," ")
-
+        # Output structuring
         newsindex = list(range(len(all_news)))
-
         listandheaders = {
             "headline": all_news,
             "cover": all_images,
-            "score": scores[:len(all_news)],
+            "score": scores,
             "date": all_time,
             "outlet": all_outlets,
             "article_links": articlelinks
         }
+        data = self.listdict(newsindex, list(listandheaders.keys()), list(listandheaders.values()))
+        days_oldest = self.find_oldest_article(data)
 
-        data = self.listdict(
-            newsindex, 
-            list(listandheaders.keys()),
-            list(listandheaders.values())
-        )
-
-        days_oldest = find_oldest_article(data)
-
-        asset_details = {
-            'asset_name': asset_name,
-            'asset_ticker': ticker
-        }
-
-        response = {
-            'asset_details': asset_details,
+        return {
+            'asset_details': {'asset_name': asset_name.replace("+", " "), 'asset_ticker': ticker},
             'n_articles_found': len(all_news),
-            'avg_score': float('%.3f' % avg),
+            'avg_score': avg_score,
             'oldest_article_read': days_oldest,
             'data': data
         }
-
-        return response

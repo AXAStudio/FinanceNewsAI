@@ -6,13 +6,30 @@ from .sentiment import SentimentAnalysis
 from .api_models import analyze_model, bias_model
 from .bias import get_bias
 
+
 import tensorflow as tf
 
 
 DEFAULT_ARTICLE_COUNT = 10
 
+import pickle
+from tensorflow.keras.models import load_model
 
-model = tf.keras.models.load_model('app/models/sentiment_model.keras')
+# Inside resources.py or wherever you load the model:
+import os
+import tensorflow as tf
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(BASE_DIR, "models", "sentiment_lstm_model.keras")
+
+if not os.path.exists(model_path):
+    raise FileNotFoundError(f"Model not found at {model_path}")
+
+model = tf.keras.models.load_model(model_path)
+
+
+
+
 api = Namespace("Sentiment Analysis")
 apib = Namespace("Bias Analysis")
 
