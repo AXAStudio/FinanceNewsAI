@@ -15,12 +15,14 @@ from tensorflow.keras.models import load_model
 # Suppress TensorFlow logs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# Load tokenizer (TextVectorization layer)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+tokenizerfile = os.path.join(BASE_DIR, "models", "tokenizer.pkl")
+with open(tokenizerfile, "rb") as f:
+    tokenizer = pickle.load(f)
 
 maxlen = 100  # consistent with training
 
-def preprocess_text_list(texts: list[str], tokenizer, maxlen: int = 100):
-    sequences = tokenizer.texts_to_sequences(texts)
-    return pad_sequences(sequences, maxlen=maxlen, padding='post', truncating='post')
 
 class TFModel:
     def __init__(self, model: Any):
@@ -93,8 +95,8 @@ class SentimentAnalysis:
         if not all_news:
             return {"error": "No news articles found"}
 
-        preprocessed = preprocess_text_list(all_news, tokenizer, maxlen)
-        predictions = self.model.predict(preprocessed)
+        text_tensor = tf.constant(all_news, dtype=tf.string)
+        predictions = self.model.predict(text_tensor)
 
         scores = [(pred[0] - 0.5) * 2 for pred in predictions]  # Normalize to -1 to 1
         scores = [round(score, 3) for score in scores]
@@ -105,7 +107,7 @@ class SentimentAnalysis:
         listandheaders = {
             "headline": all_news,
             "cover": all_images,
-            "score": scores,
+            "score": [float(score) for score in scores],
             "date": all_time,
             "outlet": all_outlets,
             "article_links": articlelinks
@@ -116,7 +118,7 @@ class SentimentAnalysis:
         return {
             'asset_details': {'asset_name': asset_name.replace("+", " "), 'asset_ticker': ticker},
             'n_articles_found': len(all_news),
-            'avg_score': avg_score,
+            'avg_score': float(avg_score),
             'oldest_article_read': days_oldest,
             'data': data
         }
