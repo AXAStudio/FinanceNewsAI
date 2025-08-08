@@ -70,7 +70,7 @@ Input → Vectorizer → Embedding(64) → BiLSTM(64) → Dense(64, relu) → De
 
 ## Installation
 ```bash
-git clone https://github.com/yourusername/senteco-ai.git
+git clone https://github.com/AXAStudio/senteco-ai.git
 cd senteco-ai
 pip install -r requirements.txt
 ```
