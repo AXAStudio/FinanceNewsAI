@@ -1,5 +1,10 @@
 # Senteco AI
 
+[![Built with TensorFlow](https://img.shields.io/badge/Built%20with-TensorFlow-orange?logo=tensorflow)](https://www.tensorflow.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Framework-Flask-lightgrey?logo=flask)](https://flask.palletsprojects.com/)
+[![NLP](https://img.shields.io/badge/NLP-Financial%20Sentiment-yellow)](#)
+
 Senteco AI is an AI-powered financial news sentiment analysis system.  
 It uses a deep learning model (BiLSTM + TensorFlow) to process market news headlines in real time, returning structured sentiment scores for companies, tickers, and assets.
 
@@ -46,3 +51,39 @@ It uses a deep learning model (BiLSTM + TensorFlow) to process market news headl
     }
   }
 }
+```
+## Model Architecture
+
+ - Text Preprocessing: TextVectorization layer
+
+ - Embedding Layer: 64-dimensional embeddings
+
+ - Recurrent Layer: Bidirectional LSTM (64 units)
+
+ - Dense Layers: Fully connected with dropout for regularization
+
+ - Output Layer: Sigmoid activation for binary sentiment classification
+
+## Flow
+
+Input → Vectorizer → Embedding(64) → BiLSTM(64) → Dense(64, relu) → Dense(1, sigmoid)
+
+## Installation
+
+git clone https://github.com/yourusername/senteco-ai.git
+cd senteco-ai
+pip install -r requirements.txt
+
+## Running the API
+
+flask run
+
+## Roadmap
+
+ - Add Ticker based sentiment analysis
+ - Support multi-language headline analysis
+ - Support two options for models to run the api
+   - Lightweight model
+   - Heavyweight model
+
+## Senteco AI – Turning financial news into actionable market intelligence.
