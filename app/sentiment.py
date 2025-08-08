@@ -8,18 +8,11 @@ from datetime import datetime
 import pickle
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.models import load_model
-
 
 # Suppress TensorFlow logs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-# Load tokenizer (TextVectorization layer)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-tokenizerfile = os.path.join(BASE_DIR, "models", "tokenizer.pkl")
-with open(tokenizerfile, "rb") as f:
-    tokenizer = pickle.load(f)
+
 
 maxlen = 100  # consistent with training
 
